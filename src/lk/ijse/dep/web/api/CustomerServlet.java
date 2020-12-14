@@ -34,12 +34,16 @@ public class CustomerServlet extends HttpServlet {
             try {
                /* Class.forName("com.mysql.jdbc.Driver");
                 Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/thogakade", "root", "1234");*/
+                String id= req.getParameter("id");
                 Connection con = cp.getConnection();
-                Statement stm = con.createStatement();
-                ResultSet rst = stm.executeQuery("SELECT * FROM Customer");
+                PreparedStatement pstm = con.prepareStatement("SELECT * FROM Customer"+((id!=null)? " WHERE id=?":""));
+                if (id!=null){
+                    pstm.setObject(1,id);
+                }
+                ResultSet rst = pstm.executeQuery();
                 List<Customer> customerList = new ArrayList<>();
                 while (rst.next()) {
-                    String id = rst.getString(1);
+                    id = rst.getString(1);
                     String name = rst.getString(2);
                     String address = rst.getString(3);
                     customerList.add(new Customer(id, name, address));
@@ -97,6 +101,28 @@ public class CustomerServlet extends HttpServlet {
                 resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }
             connection.close();
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+       String id = req.getParameter("id");
+         Jsonb jsonb = JsonbBuilder.create();
+        Customer customer = jsonb.fromJson(req.getReader(), Customer.class);
+        BasicDataSource cp = (BasicDataSource) getServletContext().getAttribute("cp");
+        try {
+            Connection connection= cp.getConnection();
+            PreparedStatement pstm = connection.prepareStatement("UPDATE Customer SET name=?,address=? WHERE id=?");
+            pstm.setObject(1, customer.getName());
+            pstm.setObject(2, customer.getAddress());
+            pstm.setObject(3, id);
+            if (pstm.executeUpdate()>0){
+                resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            }else{
+                resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            }
         } catch (SQLException throwables) {
             throwables.printStackTrace();
         }
