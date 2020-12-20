@@ -2,6 +2,7 @@ package lk.ijse.dep.web.api;
 
 import jakarta.json.bind.Jsonb;
 import jakarta.json.bind.JsonbBuilder;
+import jakarta.json.bind.JsonbException;
 import jakarta.json.stream.JsonParsingException;
 import lk.ijse.dep.web.model.Item;
 import org.apache.commons.dbcp2.BasicDataSource;
@@ -121,6 +122,51 @@ public class ItemServlet extends HttpServlet {
         } catch (SQLException throwables) {
             resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
             throwables.printStackTrace();
+        }
+
+    }
+
+    @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+
+
+        String code = req.getParameter("code");
+        if (code == null || code.matches("P\\{3}")) {
+            resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            BasicDataSource cp = (BasicDataSource) getServletContext().getAttribute("cp");
+            try (Connection connection = cp.getConnection()) {
+                Jsonb jsonb = JsonbBuilder.create();
+                Item item = jsonb.fromJson(req.getReader(), Item.class);
+
+                if (item.getCode() != null || item.getDescription() == null || item.getQtyOnHand() == null || item.getUnitPrice() == null) {
+                    resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+                    return;
+                }
+                if (item.getDescription().trim().isEmpty() || item.getQtyOnHand().trim().isEmpty() || item.getUnitPrice().trim().isEmpty()) {
+                    resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+                    return;
+                }
+                PreparedStatement pstm = connection.prepareStatement("SELECT * FROM Item WHERE code=?");
+                pstm.setObject(1, code);
+                if (pstm.executeQuery().next()) {
+                    pstm = connection.prepareStatement("UPDATE Item SET description=?, unitPrice=? qtyOnHand=? WHERE code=?");
+                    pstm.setObject(1, item.getDescription());
+                    pstm.setObject(2, item.getUnitPrice());
+                    pstm.setObject(3, item.getQtyOnHand());
+                    pstm.setObject(4, code);
+                    if (pstm.executeUpdate() > 0) {
+                        resp.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                    } else {
+                        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    }
+                } else {
+                    resp.sendError(HttpServletResponse.SC_NOT_FOUND);
+                }
+            } catch (SQLException throwables) {
+                throwables.printStackTrace();
+            } catch (JsonbException exp) {
+                resp.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            }
         }
 
     }
